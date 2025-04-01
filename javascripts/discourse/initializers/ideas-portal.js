@@ -2,7 +2,7 @@ import { apiInitializer } from "discourse/lib/api";
 
 export default apiInitializer("0.11.1", (api) => {
   // Parse enabled categories from settings
-  const enabledCategories = settings.ideas_portal_categories
+  const enabledCategories = settings.enabled_categories
     .split("|")
     .map((id) => parseInt(id, 10))
     .filter((id) => id);
