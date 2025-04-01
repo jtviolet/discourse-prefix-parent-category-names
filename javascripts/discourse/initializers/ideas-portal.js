@@ -99,7 +99,7 @@ export default apiInitializer("0.11.1", (api) => {
   // Watch for DOM changes to update sidebar category names
   api.onAppEvent("page:changed", () => {
     // Use a short delay to ensure sidebar is fully rendered
-    updateSidebarCategoryNames();
+    //updateSidebarCategoryNames();
   });
   
   // Run once on initialization
