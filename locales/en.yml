@@ -1,0 +1,3 @@
+en:
+  theme_metadata:
+    description: "This theme component prefixes parent category names to category names in the sidebar and category banners."
