@@ -3,9 +3,8 @@ import { apiInitializer } from "discourse/lib/api";
 export default apiInitializer("0.11.1", (api) => {
   // Parse enabled categories from settings
   const enabledCategories = settings.enabled_categories
-    .split("|")
-    .map((id) => parseInt(id, 10))
-    .filter((id) => id);
+    ? settings.enabled_categories.split("|").map(id => parseInt(id, 10)).filter(id => !isNaN(id))
+    : [];
 
   // Log enabled categories for debugging
   console.log("Category Prefixer: Enabled for categories:", enabledCategories);
@@ -80,14 +79,21 @@ export default apiInitializer("0.11.1", (api) => {
       const nameSpan = link.querySelector(".sidebar-section-link-content-text");
       if (!nameSpan) return;
       
-      // Check if the parent name is already prefixed
+      // Get the current text and check if it already has the parent name
       const currentText = nameSpan.textContent.trim();
+      
+      // Get the original category name (without parent prefix)
+      const categoryName = category.name;
+      
+      // If currentText already includes the parent name, don't add it again
       if (currentText.startsWith(parentCategory.name)) return;
       
-      // Update the name to include the parent category name
-      nameSpan.textContent = `${parentCategory.name} ${currentText}`;
-      console.log(`Category Prefixer: Updated sidebar category name to "${nameSpan.textContent}"`);
-    });
+      // Check if text already contains the parent prefix to avoid duplication
+      if (currentText === categoryName) {
+        // Update the name to include the parent category name
+        nameSpan.textContent = `${parentCategory.name} ${categoryName}`;
+        console.log(`Category Prefixer: Updated sidebar category name to "${nameSpan.textContent}"`);
+      }});
   };
 
   // Watch for DOM changes to update sidebar category names
@@ -120,10 +126,23 @@ export default apiInitializer("0.11.1", (api) => {
     if (!parentCategory) return;
     
     // If title doesn't already include both parent and category names
-    if (!originalTitle.includes(currentCategory.name) || !originalTitle.includes(parentCategory.name)) {
-      // Set title to "Parent Category"
-      bannerTitle.textContent = `${parentCategory.name} ${currentCategory.name}`;
-      console.log(`Category Prefixer: Updated banner title to "${bannerTitle.textContent}"`);
+    const categoryName = currentCategory.name;
+    
+    // Check if the title is already correct
+    if (originalTitle.startsWith(parentCategory.name) && originalTitle.includes(categoryName)) return;
+    
+    // Check if we need to replace an existing prefixed title or add a new prefix
+    if (originalTitle === categoryName) {
+      // Simple case - just add parent prefix to plain category name
+      bannerTitle.textContent = `${parentCategory.name} ${categoryName}`;
+    } else {
+      // There may be some existing text - be careful not to duplicate
+      // Only proceed if we're confident we're fixing a duplication
+      if (originalTitle.includes(categoryName) && !originalTitle.startsWith(parentCategory.name)) {
+        bannerTitle.textContent = `${parentCategory.name} ${categoryName}`;
+      }
     }
+    
+    console.log(`Category Prefixer: Updated banner title to "${bannerTitle.textContent}"`);
   });
 });
