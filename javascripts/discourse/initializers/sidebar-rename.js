@@ -70,8 +70,8 @@ export default apiInitializer("0.11.1", (api) => {
     });
   };
 
-  // Store the original banner texts keyed by category ID
-  const originalBannerTexts = new Map();
+  // Store the original banner texts (as a global in-memory cache)
+  const originalBannerTexts = {};
   
   // Function to update the category banner title
   const updateCategoryBannerTitle = () => {
@@ -94,12 +94,6 @@ export default apiInitializer("0.11.1", (api) => {
     
     const categoryId = category.id;
     console.log("Category Prefixer: Current category ID:", categoryId, "Name:", category.name);
-    
-    // Check if this is one of our enabled categories
-    if (!enabledCategories.includes(categoryId)) {
-      console.log("Category Prefixer: Category not in enabled list:", categoryId);
-      return;
-    }
     
     // Find the banner title using various selectors
     const possibleSelectors = [
@@ -129,23 +123,20 @@ export default apiInitializer("0.11.1", (api) => {
     const currentTitle = bannerTitle.textContent.trim();
     console.log("Category Prefixer: Current banner title:", currentTitle);
     
-    // Store the original title for this category if we haven't seen it before
-    if (!originalBannerTexts.has(categoryId)) {
-      originalBannerTexts.set(categoryId, currentTitle);
-      console.log(`Category Prefixer: Stored original title "${currentTitle}" for category ID ${categoryId}`);
-    }
+    // Always reset the banner to the category name first
+    // This ensures we don't accumulate prefixes
+    bannerTitle.textContent = category.name;
+    console.log(`Category Prefixer: Reset banner title to category name: "${category.name}"`);
     
-    // Get the original stored title (or use the current one if not stored)
-    const originalTitle = originalBannerTexts.get(categoryId) || currentTitle;
+    // If this is not one of our enabled categories or it doesn't have a parent, we're done
+    if (!enabledCategories.includes(categoryId)) {
+      console.log("Category Prefixer: Category not in enabled list:", categoryId);
+      return;
+    }
     
     // Check if it has a parent category
     if (!category.parent_category_id) {
-      console.log("Category Prefixer: Category doesn't have a parent, using original title");
-      // This is a parent category, restore original title if needed
-      if (currentTitle !== originalTitle) {
-        bannerTitle.textContent = originalTitle;
-        console.log(`Category Prefixer: Restored parent category title to "${originalTitle}"`);
-      }
+      console.log("Category Prefixer: Category doesn't have a parent, using original name");
       return;
     }
     
@@ -160,17 +151,8 @@ export default apiInitializer("0.11.1", (api) => {
     
     console.log("Category Prefixer: Parent category:", parentCategory.name);
     
-    // Get the original category name
-    const categoryName = originalTitle;
-    
-    // If title already includes the parent name, don't add it again
-    if (currentTitle.startsWith(parentCategory.name)) {
-      console.log("Category Prefixer: Title already has parent prefix, skipping");
-      return;
-    }
-    
     // Update the title to include the parent category name
-    bannerTitle.textContent = `${parentCategory.name} ${categoryName}`;
+    bannerTitle.textContent = `${parentCategory.name} ${category.name}`;
     console.log(`Category Prefixer: Updated banner title to "${bannerTitle.textContent}"`);
   };
 
