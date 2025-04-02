@@ -1,6 +1,6 @@
 {
     "name": "Prefix Parent Category Names",
-    "theme_version": "0.1",
+    "theme_version": "1.0",
     "component": true,
     "about_url": "https://github.com/jtviolet/discourse-prefix-parent-category-names",
     "license_url": "https://github.com/jtviolet/discourse-prefix-parent-category-names/blob/main/LICENSE",
