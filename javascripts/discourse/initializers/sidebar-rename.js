@@ -6,39 +6,12 @@ export default apiInitializer("0.11.1", (api) => {
     ? settings.enabled_categories.split("|").map(id => parseInt(id, 10)).filter(id => !isNaN(id))
     : [];
 
-  // Log enabled categories for debugging
   console.log("Category Prefixer: Enabled for categories:", enabledCategories);
 
   if (!enabledCategories.length) {
     console.log("Category Prefixer: No categories configured");
     return;
   }
-
-  // Helper function to get current category info using the discovery service
-  const getCurrentCategoryInfo = () => {
-    // Use the discovery service
-    const discoveryService = api.container.lookup("service:discovery");
-    const currentRoute = discoveryService?.route;
-    
-    // First check if we're on a category route
-    if (!currentRoute || !currentRoute.includes("category")) {
-      return null;
-    }
-    
-    // Get the current category from the discoveryService
-    const category = discoveryService?.category;
-    if (!category) {
-      return null;
-    }
-    
-    // Check if this is one of our enabled categories
-    if (!enabledCategories.includes(category.id)) {
-      return null;
-    }
-    
-    // Return the category info
-    return category;
-  };
 
   // Function to update sidebar category names with parent category names
   const updateSidebarCategoryNames = () => {
@@ -97,52 +70,105 @@ export default apiInitializer("0.11.1", (api) => {
     });
   };
 
-  // Function to update the banner title with parent category prefix
-  const updateBannerTitle = () => {
-    // Get current category info
-    const currentCategory = getCurrentCategoryInfo();
-    if (!currentCategory) {
-      console.log("Category Prefixer: Not on a valid category page or category not enabled");
+  // Function to update the category banner title
+  const updateCategoryBannerTitle = () => {
+    // We need to verify we're on a category page first
+    const isCategory = document.body.classList.contains("category");
+    if (!isCategory) {
       return;
     }
     
-    console.log("Category Prefixer: Current category detected:", currentCategory.name, "ID:", currentCategory.id);
+    // Get the current category from the body class
+    const bodyClasses = document.body.className.split(/\s+/);
+    let categoryClass = bodyClasses.find(c => c.startsWith("category-"));
     
-    // Get all categories from Discourse
-    const siteCategories = api.container.lookup("site:main").categories;
-    if (!siteCategories || !siteCategories.length) return;
+    if (!categoryClass) {
+      console.log("Category Prefixer: Could not determine category from body class");
+      return;
+    }
+    
+    console.log("Category Prefixer: Found category class:", categoryClass);
+    
+    // Get category info from the discovery service
+    const discoveryService = api.container.lookup("service:discovery");
+    const category = discoveryService?.category;
+    
+    if (!category) {
+      console.log("Category Prefixer: Could not get category from discovery service");
+      return;
+    }
+    
+    // Check if this is one of our enabled categories
+    if (!enabledCategories.includes(category.id)) {
+      console.log("Category Prefixer: Category not in enabled list:", category.id);
+      return;
+    }
     
     // Check if it has a parent category
-    if (!currentCategory.parent_category_id) {
+    if (!category.parent_category_id) {
       console.log("Category Prefixer: Category doesn't have a parent");
       return;
     }
     
-    // Find the parent category
-    const parentCategory = siteCategories.find(cat => cat.id === currentCategory.parent_category_id);
+    // Get all categories from Discourse
+    const siteCategories = api.container.lookup("site:main").categories;
+    const parentCategory = siteCategories.find(cat => cat.id === category.parent_category_id);
+    
     if (!parentCategory) {
       console.log("Category Prefixer: Parent category not found");
       return;
     }
     
-    console.log("Category Prefixer: Parent category found:", parentCategory.name, "ID:", parentCategory.id);
+    console.log("Category Prefixer: Current category:", category.name);
+    console.log("Category Prefixer: Parent category:", parentCategory.name);
     
-    // Directly target the h1 with class custom-banner__title as specified
-    const bannerTitle = document.querySelector("h1.custom-banner__title");
+    // Try to find the banner title using various selectors
+    const possibleSelectors = [
+      // Try the one you specified first
+      "h1.custom-banner__title",
+      // Try additional selectors in case the structure is different
+      ".custom-banner__title",
+      ".category-title h1",
+      ".category-heading h1"
+    ];
     
-    if (!bannerTitle) {
-      console.log("Category Prefixer: Could not find banner title element with h1.custom-banner__title");
-      return;
+    let bannerTitle = null;
+    let matchedSelector = null;
+    
+    for (const selector of possibleSelectors) {
+      const element = document.querySelector(selector);
+      if (element) {
+        bannerTitle = element;
+        matchedSelector = selector;
+        console.log(`Category Prefixer: Found banner with selector: ${selector}`);
+        break;
+      }
     }
     
-    console.log("Category Prefixer: Found banner title element:", bannerTitle.textContent);
+    if (!bannerTitle) {
+      console.log("Category Prefixer: Could not find any banner title element");
+      
+      // As a last resort, try to find an h1 with the category name
+      const allH1s = document.querySelectorAll("h1");
+      const matchingH1 = Array.from(allH1s).find(h1 => 
+        h1.textContent.trim() === category.name
+      );
+      
+      if (matchingH1) {
+        bannerTitle = matchingH1;
+        console.log("Category Prefixer: Found h1 with category name:", bannerTitle.textContent);
+      } else {
+        console.log("Category Prefixer: No banner title found after all attempts");
+        return;
+      }
+    }
     
     // Get the current title text
     const originalTitle = bannerTitle.textContent.trim();
     console.log("Category Prefixer: Original title:", originalTitle);
     
     // Get the original category name
-    const categoryName = currentCategory.name;
+    const categoryName = category.name;
     
     // If title already includes the parent name, don't add it again
     if (originalTitle.startsWith(parentCategory.name)) {
@@ -150,42 +176,71 @@ export default apiInitializer("0.11.1", (api) => {
       return;
     }
     
-    // Update the title to include the parent category name
-    const newTitle = `${parentCategory.name} ${categoryName}`;
-    bannerTitle.textContent = newTitle;
-    console.log(`Category Prefixer: Updated banner title to "${newTitle}"`);
+    // Check if the current title is the category name
+    if (originalTitle === categoryName) {
+      // Update the title to include the parent category name
+      bannerTitle.textContent = `${parentCategory.name} ${categoryName}`;
+      console.log(`Category Prefixer: Updated banner title to "${bannerTitle.textContent}"`);
+    } else {
+      console.log("Category Prefixer: Title doesn't match category name, not updating");
+    }
   };
 
-  // Watch for DOM changes to update sidebar category names
-  api.onAppEvent("page:changed", () => {
-    console.log("Category Prefixer: page:changed event triggered");
-    // Use a short delay to ensure sidebar is fully rendered
-    setTimeout(() => {
-      updateSidebarCategoryNames();
-      updateBannerTitle();
-    }, 300);
+  // Function to apply all updates
+  const applyUpdates = () => {
+    console.log("Category Prefixer: Applying updates");
+    updateSidebarCategoryNames();
+    updateCategoryBannerTitle();
+  };
+
+  // Run once on initialization with a delay to ensure DOM is ready
+  setTimeout(applyUpdates, 1000);
+
+  // Update when page changes
+  api.onPageChange(() => {
+    console.log("Category Prefixer: Page change detected");
+    
+    // Try to update multiple times to ensure the DOM is ready
+    setTimeout(applyUpdates, 300);
+    setTimeout(applyUpdates, 1000);
+    setTimeout(applyUpdates, 2000);
   });
   
-  // Handle DOM mutations to detect when the banner gets added/changed
-  const setupMutationObserver = () => {
-    console.log("Category Prefixer: Setting up mutation observer");
+  // Add custom event handler to observe DOM changes
+  const setupDomObserver = () => {
+    // Function to check if an element is the banner title or contains it
+    const isBannerElement = (element) => {
+      if (!element || !element.tagName) return false;
+      
+      // Check if it's the banner itself
+      if (element.tagName === 'H1' && 
+          (element.classList.contains('custom-banner__title') || 
+           element.classList.contains('category-title'))) {
+        return true;
+      }
+      
+      // Check if it contains the banner
+      return !!element.querySelector && !!element.querySelector('h1.custom-banner__title, .category-title h1');
+    };
     
-    // Create a mutation observer
+    // Create a mutation observer to watch for DOM changes
     const observer = new MutationObserver((mutations) => {
       let shouldUpdate = false;
       
-      // Check if any of these mutations are relevant to our banner
+      // Check if any mutations are relevant to our elements
       mutations.forEach((mutation) => {
-        // If we see h1 elements being added or modified
         if (mutation.type === 'childList') {
-          const addedNodes = Array.from(mutation.addedNodes);
-          // Check if any added node is our banner or contains our banner
-          addedNodes.forEach(node => {
-            if (node.querySelector && node.querySelector('h1.custom-banner__title')) {
+          // Check added nodes
+          Array.from(mutation.addedNodes).forEach(node => {
+            if (isBannerElement(node)) {
               shouldUpdate = true;
             }
-            // Check if the node itself is the banner
-            if (node.tagName === 'H1' && node.classList.contains('custom-banner__title')) {
+          });
+          
+          // Check modified nodes
+          Array.from(mutation.removedNodes).forEach(node => {
+            if (isBannerElement(node)) {
+              // If banner was removed, it might be replaced soon
               shouldUpdate = true;
             }
           });
@@ -193,51 +248,26 @@ export default apiInitializer("0.11.1", (api) => {
       });
       
       if (shouldUpdate) {
-        console.log("Category Prefixer: Banner title element changed, updating...");
-        updateBannerTitle();
+        console.log("Category Prefixer: Banner element modified, updating...");
+        setTimeout(updateCategoryBannerTitle, 100);
       }
     });
     
-    // Start observing the document with the configured parameters
+    // Start observing the document body
     observer.observe(document.body, { 
       childList: true, 
-      subtree: true,
-      characterData: true,
-      characterDataOldValue: true
+      subtree: true
     });
     
-    console.log("Category Prefixer: Mutation observer set up");
+    console.log("Category Prefixer: DOM observer setup complete");
   };
   
-  // Run once on initialization with a delay to ensure DOM is ready
-  setTimeout(() => {
-    console.log("Category Prefixer: Initial load");
-    updateSidebarCategoryNames();
-    updateBannerTitle();
-    setupMutationObserver();
-  }, 1000);
-
-  // Update sidebar and banner when page changes
-  api.onPageChange(() => {
-    console.log("Category Prefixer: Page change detected");
-    
-    // Try multiple times with increasing delays to catch when the DOM is actually ready
-    setTimeout(() => {
-      console.log("Category Prefixer: First attempt after page change");
-      updateSidebarCategoryNames();
-      updateBannerTitle();
-    }, 300);
-    
-    setTimeout(() => {
-      console.log("Category Prefixer: Second attempt after page change");
-      updateSidebarCategoryNames();
-      updateBannerTitle();
-    }, 1000);
-    
-    setTimeout(() => {
-      console.log("Category Prefixer: Third attempt after page change");
-      updateSidebarCategoryNames();
-      updateBannerTitle();
-    }, 2000);
+  // Set up the DOM observer after a short delay
+  setTimeout(setupDomObserver, 2000);
+  
+  // Also run updates when app events occur
+  api.onAppEvent("page:changed", () => {
+    console.log("Category Prefixer: page:changed event");
+    setTimeout(applyUpdates, 500);
   });
 });
