@@ -70,31 +70,18 @@ export default apiInitializer("0.11.1", (api) => {
     });
   };
 
-  // Keep track of modified banners to restore them when navigating away
-  const modifiedBanners = new Map();
+  // Store the original banner texts keyed by category ID
+  const originalBannerTexts = new Map();
   
   // Function to update the category banner title
   const updateCategoryBannerTitle = () => {
     // We need to verify we're on a category page first
     const isCategory = document.body.classList.contains("category");
     
-    // If we're not on a category page, restore any modified banners and exit
+    // If we're not on a category page, exit
     if (!isCategory) {
-      restoreModifiedBanners();
       return;
     }
-    
-    // Get the current category from the body class
-    const bodyClasses = document.body.className.split(/\s+/);
-    let categoryClass = bodyClasses.find(c => c.startsWith("category-"));
-    
-    if (!categoryClass) {
-      console.log("Category Prefixer: Could not determine category from body class");
-      restoreModifiedBanners();
-      return;
-    }
-    
-    console.log("Category Prefixer: Found category class:", categoryClass);
     
     // Get category info from the discovery service
     const discoveryService = api.container.lookup("service:discovery");
@@ -102,21 +89,63 @@ export default apiInitializer("0.11.1", (api) => {
     
     if (!category) {
       console.log("Category Prefixer: Could not get category from discovery service");
-      restoreModifiedBanners();
       return;
     }
     
+    const categoryId = category.id;
+    console.log("Category Prefixer: Current category ID:", categoryId, "Name:", category.name);
+    
     // Check if this is one of our enabled categories
-    if (!enabledCategories.includes(category.id)) {
-      console.log("Category Prefixer: Category not in enabled list:", category.id);
-      restoreModifiedBanners();
+    if (!enabledCategories.includes(categoryId)) {
+      console.log("Category Prefixer: Category not in enabled list:", categoryId);
       return;
     }
+    
+    // Find the banner title using various selectors
+    const possibleSelectors = [
+      "h1.custom-banner__title",
+      ".custom-banner__title",
+      ".category-title h1",
+      ".category-heading h1"
+    ];
+    
+    let bannerTitle = null;
+    
+    for (const selector of possibleSelectors) {
+      const element = document.querySelector(selector);
+      if (element) {
+        bannerTitle = element;
+        console.log(`Category Prefixer: Found banner with selector: ${selector}`);
+        break;
+      }
+    }
+    
+    if (!bannerTitle) {
+      console.log("Category Prefixer: Could not find any banner title element");
+      return;
+    }
+    
+    // Get the current title text
+    const currentTitle = bannerTitle.textContent.trim();
+    console.log("Category Prefixer: Current banner title:", currentTitle);
+    
+    // Store the original title for this category if we haven't seen it before
+    if (!originalBannerTexts.has(categoryId)) {
+      originalBannerTexts.set(categoryId, currentTitle);
+      console.log(`Category Prefixer: Stored original title "${currentTitle}" for category ID ${categoryId}`);
+    }
+    
+    // Get the original stored title (or use the current one if not stored)
+    const originalTitle = originalBannerTexts.get(categoryId) || currentTitle;
     
     // Check if it has a parent category
     if (!category.parent_category_id) {
-      console.log("Category Prefixer: Category doesn't have a parent");
-      restoreModifiedBanners();
+      console.log("Category Prefixer: Category doesn't have a parent, using original title");
+      // This is a parent category, restore original title if needed
+      if (currentTitle !== originalTitle) {
+        bannerTitle.textContent = originalTitle;
+        console.log(`Category Prefixer: Restored parent category title to "${originalTitle}"`);
+      }
       return;
     }
     
@@ -126,123 +155,30 @@ export default apiInitializer("0.11.1", (api) => {
     
     if (!parentCategory) {
       console.log("Category Prefixer: Parent category not found");
-      restoreModifiedBanners();
       return;
     }
     
-    console.log("Category Prefixer: Current category:", category.name);
     console.log("Category Prefixer: Parent category:", parentCategory.name);
     
-    // Try to find the banner title using various selectors
-    const possibleSelectors = [
-      // Try the one you specified first
-      "h1.custom-banner__title",
-      // Try additional selectors in case the structure is different
-      ".custom-banner__title",
-      ".category-title h1",
-      ".category-heading h1"
-    ];
-    
-    let bannerTitle = null;
-    let matchedSelector = null;
-    
-    for (const selector of possibleSelectors) {
-      const element = document.querySelector(selector);
-      if (element) {
-        bannerTitle = element;
-        matchedSelector = selector;
-        console.log(`Category Prefixer: Found banner with selector: ${selector}`);
-        break;
-      }
-    }
-    
-    if (!bannerTitle) {
-      console.log("Category Prefixer: Could not find any banner title element");
-      
-      // As a last resort, try to find an h1 with the category name
-      const allH1s = document.querySelectorAll("h1");
-      const matchingH1 = Array.from(allH1s).find(h1 => 
-        h1.textContent.trim() === category.name
-      );
-      
-      if (matchingH1) {
-        bannerTitle = matchingH1;
-        console.log("Category Prefixer: Found h1 with category name:", bannerTitle.textContent);
-      } else {
-        console.log("Category Prefixer: No banner title found after all attempts");
-        restoreModifiedBanners();
-        return;
-      }
-    }
-    
-    // Get the current title text
-    const originalTitle = bannerTitle.textContent.trim();
-    console.log("Category Prefixer: Original title:", originalTitle);
-    
     // Get the original category name
-    const categoryName = category.name;
+    const categoryName = originalTitle;
     
     // If title already includes the parent name, don't add it again
-    if (originalTitle.startsWith(parentCategory.name)) {
+    if (currentTitle.startsWith(parentCategory.name)) {
       console.log("Category Prefixer: Title already has parent prefix, skipping");
       return;
     }
     
-    // Check if the current title is the category name (or very close to it)
-    if (originalTitle === categoryName || 
-        originalTitle.includes(categoryName) ||
-        categoryName.includes(originalTitle)) {
-      
-      // Store the original title before modifying it
-      if (!modifiedBanners.has(bannerTitle)) {
-        modifiedBanners.set(bannerTitle, originalTitle);
-        console.log("Category Prefixer: Stored original title for later restoration");
-      }
-      
-      // Update the title to include the parent category name
-      bannerTitle.textContent = `${parentCategory.name} ${categoryName}`;
-      console.log(`Category Prefixer: Updated banner title to "${bannerTitle.textContent}"`);
-    } else {
-      console.log("Category Prefixer: Title doesn't match category name, not updating");
-    }
-  };
-  
-  // Function to restore original banner titles when navigating away from category pages
-  const restoreModifiedBanners = () => {
-    if (modifiedBanners.size === 0) {
-      return;
-    }
-    
-    console.log("Category Prefixer: Restoring original banner titles");
-    
-    modifiedBanners.forEach((originalText, element) => {
-      if (element && element.textContent && element.textContent !== originalText) {
-        console.log(`Category Prefixer: Restoring banner from "${element.textContent}" to "${originalText}"`);
-        element.textContent = originalText;
-      }
-    });
-    
-    // Clear the map after restoring
-    modifiedBanners.clear();
+    // Update the title to include the parent category name
+    bannerTitle.textContent = `${parentCategory.name} ${categoryName}`;
+    console.log(`Category Prefixer: Updated banner title to "${bannerTitle.textContent}"`);
   };
 
   // Function to apply all updates
   const applyUpdates = () => {
     console.log("Category Prefixer: Applying updates");
-    
-    // Check if we're on a category page
-    const isCategory = document.body.classList.contains("category");
-    
-    // Always update sidebar category names
     updateSidebarCategoryNames();
-    
-    // Only try to update banner title if we're on a category page
-    if (isCategory) {
-      updateCategoryBannerTitle();
-    } else {
-      // If not on a category page, make sure to restore any modified banners
-      restoreModifiedBanners();
-    }
+    updateCategoryBannerTitle();
   };
 
   // Run once on initialization with a delay to ensure DOM is ready
