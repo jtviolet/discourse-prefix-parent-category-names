@@ -2,4 +2,4 @@ enabled_categories:
   type: list
   list_type: category
   default: ""
-  description: "Select categories that should have their parent category name added as a prefix."
+  description: "Select categories that should have their parent category name added as a prefix to the sidebar and banners."
