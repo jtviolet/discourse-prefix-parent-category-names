@@ -127,67 +127,15 @@ export default apiInitializer("0.11.1", (api) => {
     
     console.log("Category Prefixer: Parent category found:", parentCategory.name, "ID:", parentCategory.id);
     
-    // Let's identify the correct banner element by scanning the DOM
-    console.log("Category Prefixer: Scanning for banner title elements...");
-    
-    // Common selectors for Discourse category title banners
-    const bannerTitleSelectors = [
-      ".category-heading h1", 
-      ".category-title-header .category-title", 
-      "h1.category-title", 
-      ".category-title-header h1",
-      ".custom-banner__title",
-      "#main-outlet .category-heading h1",
-      ".d-header .title-wrapper h1",
-      ".category-title h1", 
-      ".title h1",
-      "header .title",
-      ".category-heading-content h1"
-    ];
-    
-    // Debug all potential banner elements
-    bannerTitleSelectors.forEach(selector => {
-      const element = document.querySelector(selector);
-      if (element) {
-        console.log(`Category Prefixer: Found potential banner element with selector "${selector}":`, element.textContent);
-      }
-    });
-    
-    // Try each selector
-    let bannerTitle = null;
-    let matchedSelector = null;
-    for (const selector of bannerTitleSelectors) {
-      bannerTitle = document.querySelector(selector);
-      if (bannerTitle) {
-        matchedSelector = selector;
-        break;
-      }
-    }
+    // Directly target the h1 with class custom-banner__title as specified
+    const bannerTitle = document.querySelector("h1.custom-banner__title");
     
     if (!bannerTitle) {
-      console.log("Category Prefixer: Could not find banner title element with predefined selectors");
-      
-      // Let's find ALL h1 elements on the page as a fallback
-      const allH1s = document.querySelectorAll("h1");
-      console.log(`Category Prefixer: Found ${allH1s.length} h1 elements on the page:`);
-      allH1s.forEach((h1, index) => {
-        console.log(`Category Prefixer: h1 #${index}:`, h1.textContent, h1);
-      });
-      
-      // Try to find a heading that contains the category name
-      const categoryNameHeading = Array.from(allH1s).find(h1 => 
-        h1.textContent.includes(currentCategory.name)
-      );
-      
-      if (categoryNameHeading) {
-        console.log("Category Prefixer: Found heading containing category name:", categoryNameHeading.textContent);
-        bannerTitle = categoryNameHeading;
-      } else {
-        return;
-      }
-    } else {
-      console.log(`Category Prefixer: Found banner title with selector "${matchedSelector}"`);
+      console.log("Category Prefixer: Could not find banner title element with h1.custom-banner__title");
+      return;
     }
+    
+    console.log("Category Prefixer: Found banner title element:", bannerTitle.textContent);
     
     // Get the current title text
     const originalTitle = bannerTitle.textContent.trim();
@@ -218,11 +166,55 @@ export default apiInitializer("0.11.1", (api) => {
     }, 300);
   });
   
+  // Handle DOM mutations to detect when the banner gets added/changed
+  const setupMutationObserver = () => {
+    console.log("Category Prefixer: Setting up mutation observer");
+    
+    // Create a mutation observer
+    const observer = new MutationObserver((mutations) => {
+      let shouldUpdate = false;
+      
+      // Check if any of these mutations are relevant to our banner
+      mutations.forEach((mutation) => {
+        // If we see h1 elements being added or modified
+        if (mutation.type === 'childList') {
+          const addedNodes = Array.from(mutation.addedNodes);
+          // Check if any added node is our banner or contains our banner
+          addedNodes.forEach(node => {
+            if (node.querySelector && node.querySelector('h1.custom-banner__title')) {
+              shouldUpdate = true;
+            }
+            // Check if the node itself is the banner
+            if (node.tagName === 'H1' && node.classList.contains('custom-banner__title')) {
+              shouldUpdate = true;
+            }
+          });
+        }
+      });
+      
+      if (shouldUpdate) {
+        console.log("Category Prefixer: Banner title element changed, updating...");
+        updateBannerTitle();
+      }
+    });
+    
+    // Start observing the document with the configured parameters
+    observer.observe(document.body, { 
+      childList: true, 
+      subtree: true,
+      characterData: true,
+      characterDataOldValue: true
+    });
+    
+    console.log("Category Prefixer: Mutation observer set up");
+  };
+  
   // Run once on initialization with a delay to ensure DOM is ready
   setTimeout(() => {
     console.log("Category Prefixer: Initial load");
     updateSidebarCategoryNames();
     updateBannerTitle();
+    setupMutationObserver();
   }, 1000);
 
   // Update sidebar and banner when page changes
