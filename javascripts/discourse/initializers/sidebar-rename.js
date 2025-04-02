@@ -164,16 +164,16 @@ export default apiInitializer("0.11.1", (api) => {
   };
 
   // Run once on initialization with a delay to ensure DOM is ready
-  setTimeout(applyUpdates, 1000);
+  applyUpdates();
 
   // Update when page changes
   api.onPageChange(() => {
     console.log("Category Prefixer: Page change detected");
     
     // Try to update multiple times to ensure the DOM is ready
-    setTimeout(applyUpdates, 300);
-    setTimeout(applyUpdates, 1000);
-    setTimeout(applyUpdates, 2000);
+    applyUpdates();
+    applyUpdates();
+    applyUpdates();
   });
   
   // Add custom event handler to observe DOM changes
@@ -233,11 +233,11 @@ export default apiInitializer("0.11.1", (api) => {
   };
   
   // Set up the DOM observer after a short delay
-  setTimeout(setupDomObserver, 2000);
+  setupDomObserver();
   
   // Also run updates when app events occur
   api.onAppEvent("page:changed", () => {
     console.log("Category Prefixer: page:changed event");
-    setTimeout(applyUpdates, 500);
+    applyUpdates();
   });
 });
