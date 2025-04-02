@@ -172,8 +172,6 @@ export default apiInitializer("0.11.1", (api) => {
     
     // Try to update multiple times to ensure the DOM is ready
     applyUpdates();
-    applyUpdates();
-    applyUpdates();
   });
   
   // Add custom event handler to observe DOM changes
@@ -231,13 +229,4 @@ export default apiInitializer("0.11.1", (api) => {
     
     console.log("Category Prefixer: DOM observer setup complete");
   };
-  
-  // Set up the DOM observer after a short delay
-  setupDomObserver();
-  
-  // Also run updates when app events occur
-  api.onAppEvent("page:changed", () => {
-    console.log("Category Prefixer: page:changed event");
-    applyUpdates();
-  });
 });
