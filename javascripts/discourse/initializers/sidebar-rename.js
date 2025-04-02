@@ -93,56 +93,82 @@ export default apiInitializer("0.11.1", (api) => {
         // Update the name to include the parent category name
         nameSpan.textContent = `${parentCategory.name} ${categoryName}`;
         console.log(`Category Prefixer: Updated sidebar category name to "${nameSpan.textContent}"`);
-      }});
+      }
+    });
+  };
+
+  // Function to update the banner title with parent category prefix
+  const updateBannerTitle = () => {
+    // Get current category info
+    const currentCategory = getCurrentCategoryInfo();
+    if (!currentCategory) return;
+    
+    // Get all categories from Discourse
+    const siteCategories = api.container.lookup("site:main").categories;
+    if (!siteCategories || !siteCategories.length) return;
+    
+    // Check if it has a parent category
+    if (!currentCategory.parent_category_id) return;
+    
+    // Find the parent category
+    const parentCategory = siteCategories.find(cat => cat.id === currentCategory.parent_category_id);
+    if (!parentCategory) return;
+    
+    // Find the banner title elements - try different selectors based on Discourse versions
+    const bannerTitleSelectors = [
+      ".category-heading h1", // Modern Discourse
+      ".category-title-header .category-title", // Some themes
+      "h1.category-title", // Another variation
+      ".category-title-header h1", // Yet another variation
+      ".custom-banner__title" // Your existing selector
+    ];
+    
+    // Try each selector
+    let bannerTitle = null;
+    for (const selector of bannerTitleSelectors) {
+      bannerTitle = document.querySelector(selector);
+      if (bannerTitle) break;
+    }
+    
+    if (!bannerTitle) {
+      console.log("Category Prefixer: Could not find banner title element");
+      return;
+    }
+    
+    // Get the current title text
+    const originalTitle = bannerTitle.textContent.trim();
+    
+    // Get the original category name
+    const categoryName = currentCategory.name;
+    
+    // If title already includes the parent name, don't add it again
+    if (originalTitle.startsWith(parentCategory.name)) return;
+    
+    // Update the title to include the parent category name
+    bannerTitle.textContent = `${parentCategory.name} ${categoryName}`;
+    console.log(`Category Prefixer: Updated banner title to "${bannerTitle.textContent}"`);
   };
 
   // Watch for DOM changes to update sidebar category names
   api.onAppEvent("page:changed", () => {
     // Use a short delay to ensure sidebar is fully rendered
-    updateSidebarCategoryNames();
+    setTimeout(() => {
+      updateSidebarCategoryNames();
+      updateBannerTitle();
+    }, 100);
   });
   
-  // Run once on initialization
-  //updateSidebarCategoryNames();
+  // Run once on initialization with a delay to ensure DOM is ready
+  setTimeout(() => {
+    updateSidebarCategoryNames();
+    updateBannerTitle();
+  }, 500);
 
-  // Update banner title when page changes
+  // Update sidebar and banner when page changes
   api.onPageChange(() => {
-    // Get current category info
-    const currentCategory = getCurrentCategoryInfo();
-    if (!currentCategory) return;
-    
-    // Find the custom banner title element
-    const bannerTitle = document.querySelector(".custom-banner__title");
-    if (!bannerTitle) return;
-    
-    // Get the current title text
-    const originalTitle = bannerTitle.textContent.trim();
-    
-    // Get parent category name if available
-    if (!currentCategory.parent_category_id) return;
-    
-    const siteCategories = api.container.lookup("site:main").categories;
-    const parentCategory = siteCategories.find(cat => cat.id === currentCategory.parent_category_id);
-    if (!parentCategory) return;
-    
-    // If title doesn't already include both parent and category names
-    const categoryName = currentCategory.name;
-    
-    // Check if the title is already correct
-    if (originalTitle.startsWith(parentCategory.name) && originalTitle.includes(categoryName)) return;
-    
-    // Check if we need to replace an existing prefixed title or add a new prefix
-    if (originalTitle === categoryName) {
-      // Simple case - just add parent prefix to plain category name
-      bannerTitle.textContent = `${parentCategory.name} ${categoryName}`;
-    } else {
-      // There may be some existing text - be careful not to duplicate
-      // Only proceed if we're confident we're fixing a duplication
-      if (originalTitle.includes(categoryName) && !originalTitle.startsWith(parentCategory.name)) {
-        bannerTitle.textContent = `${parentCategory.name} ${categoryName}`;
-      }
-    }
-    
-    console.log(`Category Prefixer: Updated banner title to "${bannerTitle.textContent}"`);
+    setTimeout(() => {
+      updateSidebarCategoryNames();
+      updateBannerTitle();
+    }, 100);
   });
 });
